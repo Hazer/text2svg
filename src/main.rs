@@ -19,8 +19,12 @@ struct Args {
     text: Option<String>,
 
     /// max width per line (characters)
-    #[arg(long, conflicts_with = "highlight")]
+    #[arg(long, conflicts_with_all = ["highlight", "pixel_width"])]
     width: Option<usize>,
+
+    /// max width per line (pixels)
+    #[arg(long, conflicts_with_all = ["highlight", "width"])]
+    pixel_width: Option<f32>,
 
     /// input file
     #[arg(long,short, conflicts_with = "text")]
@@ -57,6 +61,10 @@ struct Args {
     /// letter spacing (in em units, e.g., 0.1)
     #[arg(long, default_value_t = 0.0)] // Default to 0 for better compatibility with <use> positioning
     space: f32,
+
+    /// font features (e.g., "cv01=1,calt=0,liga=1")
+    #[arg(long, conflicts_with="highlight")]
+    features: Option<String>,
 
     /// Enable syntax highlighting mode for files
     #[arg(long)]
@@ -185,13 +193,25 @@ fn run() -> Result<(),Error> {
     )?;
     font_config.set_letter_space(args.space);
 
+    // Apply font features if specified
+    if let Some(features_str) = &args.features {
+        if let Err(err) = font_config.set_features_from_string(features_str) {
+            return Err(anyhow::anyhow!("Failed to parse font features '{}': {}", features_str, err));
+        }
+        if args.debug {
+            println!("Applied font features: {}", font_config.get_features_summary());
+        }
+    }
+
     if args.debug {
         println!("Font Config: {:?}", font_config);
+        println!("Active font features: {}", font_config.get_features_summary());
     }
 
     // Create RenderConfig (for non-highlight mode)
     let mut render_config = RenderConfig::new(args.animate, args.style.unwrap_or(FontStyle::Regular));
     render_config.set_max_width(args.width);
+    render_config.set_max_pixel_width(args.pixel_width);
 
 
     // --- Rendering Logic ---

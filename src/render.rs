@@ -15,6 +15,8 @@ use crate::highlight::{HighlightColor, HighlightFontStyle, HighlightSetting};
 use crate::svg::{TextBuilder, GlyphCache, GlyphDefs};
 use crate::utils::open_file_by_lines;
 use crate::utils::open_file_by_lines_width;
+use crate::utils::open_file_by_lines_pixel_width;
+use crate::utils::wrap_text_by_pixel_width;
 
 use svg::node::element::{Group, Style};
 use svg::Document;
@@ -25,6 +27,7 @@ pub struct RenderConfig {
     animate: bool,
     font_style: FontStyle,
     max_width: Option<usize>,
+    max_pixel_width: Option<f32>,
 }
 
 impl RenderConfig {
@@ -33,11 +36,17 @@ impl RenderConfig {
             animate,
             font_style: style,
             max_width: None,
+            max_pixel_width: None,
         }
     }
 
     pub fn set_max_width(&mut self, width: Option<usize>) -> &mut Self {
         self.max_width = width;
+        self
+    }
+
+    pub fn set_max_pixel_width(&mut self, pixel_width: Option<f32>) -> &mut Self {
+        self.max_pixel_width = pixel_width;
         self
     }
 
@@ -233,10 +242,12 @@ pub fn render_text_file_to_svg(file: &PathBuf, font_config: &mut FontConfig, ren
         // Note: stroke-width might need to be set here or in TextBuilder if needed
 
 
-    let file_lines = if render_config.max_width.is_none() {
-        open_file_by_lines(file)
+    let file_lines = if let Some(pixel_width) = render_config.max_pixel_width {
+        open_file_by_lines_pixel_width(file, pixel_width, font_config, render_config.get_font_style())
+    } else if let Some(char_width) = render_config.max_width {
+        open_file_by_lines_width(file, char_width)
     } else {
-        open_file_by_lines_width(file, render_config.max_width.unwrap())
+        open_file_by_lines(file)
     };
 
     if font_config.get_debug() {
@@ -285,15 +296,90 @@ pub fn render_text_file_to_svg(file: &PathBuf, font_config: &mut FontConfig, ren
     }
 }
 
+// Helper function to render multiple text lines to SVG
+fn render_text_lines_to_svg(lines: Vec<String>, font_config: &mut FontConfig, render_config: &RenderConfig, output: PathBuf) {
+    let mut max_width: u32 = 0;
+    let mut current_height: u32 = 0;
+    let line_height = font_config.get_size(); // Use font size as line height
+
+    let mut doc = Document::new();
+    let mut glyph_cache: GlyphCache = HashMap::new();
+    let mut glyph_defs: GlyphDefs = HashMap::new(); // Uses Box<dyn Node>
+    // Group for all text content, potentially animated
+    let mut main_group = Group::new();
+    if render_config.get_animate() {
+        main_group = main_group.set("class", "text");
+    }
+    // Apply global fill/stroke to the main group
+    main_group = main_group
+        .set("fill", font_config.get_fill_color().as_str())
+        .set("stroke", font_config.get_color().as_str());
+
+    for line in lines.iter() {
+        let line_group_transform = format!("translate(0, {})", current_height);
+        if line.is_empty() {
+            // Still advance height for empty lines
+        } else if let Some((line_content_group, line_bbox)) =
+            // Pass glyph_defs as mutable reference
+            render_text_line(0.0, 0.0, line, font_config, render_config, &mut glyph_cache, &mut glyph_defs)
+        {
+            // Wrap line content in a group for positioning
+            let positioned_line_group = Group::new()
+                .set("transform", line_group_transform)
+                .add(line_content_group);
+            main_group = main_group.add(positioned_line_group);
+            // Cast i16 width to u32 for max comparison
+            max_width = max_width.max(line_bbox.width() as u32);
+        }
+        current_height += line_height; // Move to next line position
+    }
+
+    // Add definitions
+    let mut defs = Definitions::new();
+    // Iterate over the HashMap using .iter() and clone the Box<dyn Node>
+    for (_id, node_box) in glyph_defs.iter() {
+        defs = defs.add(node_box.clone());
+    }
+    doc = doc.add(defs); // Add defs first
+    doc = doc.add(main_group); // Add text content
+
+    if render_config.get_animate() {
+        doc = doc.add(get_animation_style());
+    }
+
+    doc = doc
+        .set("height", current_height)
+        .set("width", max_width)
+        .set("viewBox", format!("0 0 {} {}", max_width, current_height));
+
+    svg::save(output, &doc).unwrap();
+}
+
 pub fn render_text_to_svg_file(text: &str, font_config: &mut FontConfig,render_config: &RenderConfig, output: PathBuf) {
     let mut doc = Document::new();
     let mut glyph_cache: GlyphCache = HashMap::new();
     let mut glyph_defs: GlyphDefs = HashMap::new(); // Uses Box<dyn Node>
 
+    // Handle text wrapping if pixel width is specified
+    let text_lines = if let Some(pixel_width) = render_config.max_pixel_width {
+        wrap_text_by_pixel_width(text, pixel_width, font_config, render_config.get_font_style())
+    } else {
+        vec![text.to_string()]
+    };
+
+    // If we have multiple lines, render them like a file
+    if text_lines.len() > 1 {
+        render_text_lines_to_svg(text_lines, font_config, render_config, output);
+        return;
+    }
+
+    // Single line rendering (original logic)
+    let text_to_render = &text_lines[0];
+    
     // Shape the text
     // Pass glyph_defs as mutable reference
     if let Some((text_content_group, text_bbox)) =
-        render_text_line(0.0, 0.0, text, font_config, render_config, &mut glyph_cache, &mut glyph_defs)
+        render_text_line(0.0, 0.0, text_to_render, font_config, render_config, &mut glyph_cache, &mut glyph_defs)
     {
         // Cast i16 height/width to u32
         let height = text_bbox.height() as u32;
