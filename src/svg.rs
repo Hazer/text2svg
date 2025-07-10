@@ -151,7 +151,7 @@ impl TextBuilder {
             prev_space_glyph = false; // Reset after potentially adding space
 
             // --- Manage Glyph Definition ---
-            if !glyph_cache.contains_key(&glyph_id_u16) {
+            if let std::collections::hash_map::Entry::Vacant(e) = glyph_cache.entry(glyph_id_u16) {
                 let mut d_str = String::new();
                 // Build path at origin (0,0) with scaling
                 let mut path_builder = GlyphPathBuilder::new(
@@ -173,7 +173,7 @@ impl TextBuilder {
 
                 // Insert the Boxed node into glyph_defs
                 glyph_defs.insert(svg_id.clone(), Box::new(def_path));
-                glyph_cache.insert(glyph_id_u16, svg_id.clone());
+                e.insert(svg_id.clone());
 
                 if font_config.get_debug() {
                     println!("Defined glyph: id={}, svg_id={}", glyph_id_u16, svg_id);

@@ -1,14 +1,8 @@
 use syntect::{highlighting::{Color, FontStyle as SynFontStyle, Theme, ThemeSet}, parsing::SyntaxSet, LoadingError}; // Renamed FontStyle to avoid clash
-use std::{fmt::Display, path::Path, fs};
-use anyhow::{Result, anyhow};
+use std::{fmt::Display, path::Path};
 
 use crate::font::FontStyle as AppFontStyle; // Renamed our FontStyle
 
-#[derive(Debug)]
-pub enum HighlightTheme{
-    GruvboxDark,
-    GruvboxLight,
-}
 
 pub struct HighlightSetting {
     pub syntax_set: SyntaxSet,

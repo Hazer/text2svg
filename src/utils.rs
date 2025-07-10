@@ -94,41 +94,39 @@ impl<R: BufRead> Iterator for WidthLineIterator<R> {
     type Item = String;
 
         fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            // Process buffer first if exceeding max_width
-            if self.buffer.chars().count() > self.max_width {
-                let (line_part, remaining_part) = split_line(&self.buffer, self.max_width);
-                self.buffer = remaining_part;
-                return Some(line_part);
-            }
+        // Process buffer first if exceeding max_width
+        if self.buffer.chars().count() > self.max_width {
+            let (line_part, remaining_part) = split_line(&self.buffer, self.max_width);
+            self.buffer = remaining_part;
+            return Some(line_part);
+        }
 
-            // If buffer has content within max_width, return it
-            if !self.buffer.is_empty() {
-                let buffer_content = std::mem::take(&mut self.buffer);
-                return Some(buffer_content);
-            }
+        // If buffer has content within max_width, return it
+        if !self.buffer.is_empty() {
+            let buffer_content = std::mem::take(&mut self.buffer);
+            return Some(buffer_content);
+        }
 
-            // Buffer empty, read a new line
-            let mut line = String::new();
-            match self.reader.read_line(&mut line) {
-                Ok(0) => return None, // EOF
-                Ok(_) => { // Successfully read a line
-                    let trimmed_line = line.trim_end_matches(|c| c == '\r' || c == '\n').to_string();
+        // Buffer empty, read a new line
+        let mut line = String::new();
+        match self.reader.read_line(&mut line) {
+            Ok(0) => None, // EOF
+            Ok(_) => { // Successfully read a line
+                let trimmed_line = line.trim_end_matches(['\r', '\n']).to_string();
 
-                    // If line exceeds max_width, split it
-                    if trimmed_line.chars().count() > self.max_width {
-                        let (line_part, remaining_part) = split_line(&trimmed_line, self.max_width);
-                        self.buffer = remaining_part;
-                        return Some(line_part);
-                    } else {
-                        // Line fits within max_width
-                        return Some(trimmed_line);
-                    }
+                // If line exceeds max_width, split it
+                if trimmed_line.chars().count() > self.max_width {
+                    let (line_part, remaining_part) = split_line(&trimmed_line, self.max_width);
+                    self.buffer = remaining_part;
+                    Some(line_part)
+                } else {
+                    // Line fits within max_width
+                    Some(trimmed_line)
                 }
-                Err(e) => {
-                    eprintln!("Error reading line: {}", e);
-                    return None;
-                }
+            }
+            Err(e) => {
+                eprintln!("Error reading line: {}", e);
+                None
             }
         }
     }
@@ -158,48 +156,46 @@ impl<'a, R: BufRead> PixelWidthLineIterator<'a, R> {
     }
 }
 
-impl<'a, R: BufRead> Iterator for PixelWidthLineIterator<'a, R> {
+impl<R: BufRead> Iterator for PixelWidthLineIterator<'_, R> {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            // Process buffer first if exceeding max_pixel_width
-            if let Some(text_width) = calculate_text_width(&self.buffer, self.font_config, self.font_style) {
-                if text_width > self.max_pixel_width {
-                    let (line_part, remaining_part) = split_line_by_pixel_width(&self.buffer, self.max_pixel_width, self.font_config, self.font_style);
-                    self.buffer = remaining_part;
-                    return Some(line_part);
-                }
+        // Process buffer first if exceeding max_pixel_width
+        if let Some(text_width) = calculate_text_width(&self.buffer, self.font_config, self.font_style) {
+            if text_width > self.max_pixel_width {
+                let (line_part, remaining_part) = split_line_by_pixel_width(&self.buffer, self.max_pixel_width, self.font_config, self.font_style);
+                self.buffer = remaining_part;
+                return Some(line_part);
             }
+        }
 
-            // If buffer has content within max_pixel_width, return it
-            if !self.buffer.is_empty() {
-                let buffer_content = std::mem::take(&mut self.buffer);
-                return Some(buffer_content);
-            }
+        // If buffer has content within max_pixel_width, return it
+        if !self.buffer.is_empty() {
+            let buffer_content = std::mem::take(&mut self.buffer);
+            return Some(buffer_content);
+        }
 
-            // Buffer empty, read a new line
-            let mut line = String::new();
-            match self.reader.read_line(&mut line) {
-                Ok(0) => return None, // EOF
-                Ok(_) => { // Successfully read a line
-                    let trimmed_line = line.trim_end_matches(|c| c == '\r' || c == '\n').to_string();
+        // Buffer empty, read a new line
+        let mut line = String::new();
+        match self.reader.read_line(&mut line) {
+            Ok(0) => None, // EOF
+            Ok(_) => { // Successfully read a line
+                let trimmed_line = line.trim_end_matches(['\r', '\n']).to_string();
 
-                    // If line exceeds max_pixel_width, split it
-                    if let Some(text_width) = calculate_text_width(&trimmed_line, self.font_config, self.font_style) {
-                        if text_width > self.max_pixel_width {
-                            let (line_part, remaining_part) = split_line_by_pixel_width(&trimmed_line, self.max_pixel_width, self.font_config, self.font_style);
-                            self.buffer = remaining_part;
-                            return Some(line_part);
-                        }
+                // If line exceeds max_pixel_width, split it
+                if let Some(text_width) = calculate_text_width(&trimmed_line, self.font_config, self.font_style) {
+                    if text_width > self.max_pixel_width {
+                        let (line_part, remaining_part) = split_line_by_pixel_width(&trimmed_line, self.max_pixel_width, self.font_config, self.font_style);
+                        self.buffer = remaining_part;
+                        return Some(line_part);
                     }
-                    // Line fits within max_pixel_width
-                    return Some(trimmed_line);
                 }
-                Err(e) => {
-                    eprintln!("Error reading line: {}", e);
-                    return None;
-                }
+                // Line fits within max_pixel_width
+                Some(trimmed_line)
+            }
+            Err(e) => {
+                eprintln!("Error reading line: {}", e);
+                None
             }
         }
     }
@@ -212,15 +208,13 @@ fn split_line(line: &str, max_width: usize) -> (String, String) {
     }
 
     // Find the character index corresponding to max_width
-    let mut split_char_index = 0;
-    for (idx, _) in line.char_indices().skip(max_width) {
-        split_char_index = idx;
-        break;
-    }
-    // If max_width lands exactly at the end, handle potential edge case
-    if split_char_index == 0 && line.chars().count() > max_width {
-         split_char_index = line.char_indices().nth(max_width).map(|(i, _)| i).unwrap_or(line.len());
-    }
+    let split_char_index = if let Some((idx, _)) = line.char_indices().nth(max_width) {
+        idx
+    } else if line.chars().count() > max_width {
+        line.char_indices().nth(max_width).map(|(i, _)| i).unwrap_or(line.len())
+    } else {
+        0
+    };
 
     // Look backwards from the split point for whitespace
     let potential_split_point = &line[..split_char_index];
@@ -526,7 +520,7 @@ mod test_utils{
 
   // Helper function to create a font config with system fonts for testing
   fn create_test_font_config() -> FontConfig {
-        use crate::font::{FontStyle, fonts};
+        use crate::font::fonts;
         
         // Try to get system fonts and use the first available one
         let available_fonts = fonts();
@@ -674,6 +668,6 @@ mod test_utils{
         // Test that the functions exist - we're not testing functionality here,
         // just API availability since we can't guarantee font availability in tests
         let _result = format!("pixel width API functions are available for text: {}", text);
-        assert!(true); // API exists if we reach here
+        // API exists if we reach here
   }
 }

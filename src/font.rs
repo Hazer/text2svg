@@ -39,19 +39,19 @@ pub enum FontStyle {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseFontStyleErr;
 
-impl ToString for FontStyle {
-    fn to_string(&self) -> String {
+impl Display for FontStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
-            FontStyle::Thin => "thin".to_string(),
-            FontStyle::Light => "light".to_string(),
-            FontStyle::ExtraLight => "extra_light".to_string(),
-            FontStyle::Regular => "regular".to_string(),
-            FontStyle::Medium => "medium".to_string(),
-            FontStyle::Bold => "bold".to_string(),
-            FontStyle::SemiBold => "semi_bold".to_string(),
-            FontStyle::ExtraBold => "extra_bold".to_string(),
-            FontStyle::Black => "black".to_string(),
-            FontStyle::Italic => "italic".to_string(),
+            FontStyle::Thin => write!(f, "thin"),
+            FontStyle::Light => write!(f, "light"),
+            FontStyle::ExtraLight => write!(f, "extra_light"),
+            FontStyle::Regular => write!(f, "regular"),
+            FontStyle::Medium => write!(f, "medium"),
+            FontStyle::Bold => write!(f, "bold"),
+            FontStyle::SemiBold => write!(f, "semi_bold"),
+            FontStyle::ExtraBold => write!(f, "extra_bold"),
+            FontStyle::Black => write!(f, "black"),
+            FontStyle::Italic => write!(f, "italic"),
         }
     }
 }
@@ -135,28 +135,28 @@ fn font_full_name_to_weight(name: String) -> Option<FontStyle> {
 // Approximate font weight as flooring operation in math
 fn approximate_font_weight(weight: Weight) -> FontStyle {
     let w = weight.0;
-    if w >= Weight::THIN.0 &&  w < Weight::EXTRA_LIGHT.0 {
+    if (Weight::THIN.0..Weight::EXTRA_LIGHT.0).contains(&w) {
         return FontStyle::Thin;
     }
-    if w >= Weight::EXTRA_LIGHT.0 &&  w < Weight::LIGHT.0 {
+    if (Weight::EXTRA_LIGHT.0..Weight::LIGHT.0).contains(&w) {
         return FontStyle::ExtraLight;
     }
-    if w >= Weight::LIGHT.0 &&  w < Weight::NORMAL.0 {
+    if (Weight::LIGHT.0..Weight::NORMAL.0).contains(&w) {
         return FontStyle::Light;
     }
-    if w >= Weight::NORMAL.0 &&  w < Weight::MEDIUM.0 {
+    if (Weight::NORMAL.0..Weight::MEDIUM.0).contains(&w) {
         return FontStyle::Regular;
     }
-    if w >= Weight::MEDIUM.0 &&  w < Weight::SEMIBOLD.0 {
+    if (Weight::MEDIUM.0..Weight::SEMIBOLD.0).contains(&w) {
         return FontStyle::Medium;
     }
-    if w >= Weight::SEMIBOLD.0 &&  w < Weight::BOLD.0 {
+    if (Weight::SEMIBOLD.0..Weight::BOLD.0).contains(&w) {
         return FontStyle::SemiBold;
     }
-    if w >= Weight::BOLD.0 &&  w < Weight::EXTRA_BOLD.0 {
+    if (Weight::BOLD.0..Weight::EXTRA_BOLD.0).contains(&w) {
         return FontStyle::Bold;
     }
-    if w >= Weight::EXTRA_BOLD.0 &&  w < Weight::BLACK.0 {
+    if (Weight::EXTRA_BOLD.0..Weight::BLACK.0).contains(&w) {
         return FontStyle::ExtraBold;
     }
     FontStyle::Black
@@ -226,21 +226,6 @@ impl FontConfig {
         })
     }
 
-    pub fn has_feature(&mut self, name: &str) -> bool {
-        self.feature_map.get(name).is_some()
-    }
-
-    pub fn add_feature(&mut self, name: &str)  {
-        self.feature_map.insert(name.to_owned(),Feature::from_str(name).unwrap());
-        self.features = self.feature_map.values().cloned().collect();
-    }
-
-    pub fn remove_feature(&mut self, name: &str) {
-        if self.has_feature(name) {
-            self.feature_map.remove(name);
-            self.features = self.feature_map.values().cloned().collect();
-        }
-    }
 
     /// Parse and set font features from a string like "cv01=1,calt=0,liga=1"
     /// This will override existing features for the same tags, but keeps defaults for unspecified features
@@ -325,9 +310,6 @@ impl FontConfig {
         &self.features
     }
 
-    pub fn get_regular_font(&self) -> Option<&Font> {
-        self.faces.get(&FontStyle::Regular)
-    }
 
     pub fn get_font_by_style(&self, style: &FontStyle) -> Option<&Font> {
         self.faces.get(style)
