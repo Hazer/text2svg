@@ -214,11 +214,11 @@ fn get_animation_style() -> Style {
     }
   }
 
-  .text {
+  .text-line {
     /* Adjust stroke-dasharray based on expected max path length if needed */
     stroke-dasharray: 1000 1000;
     stroke-dashoffset: 1000;
-    animation: draw 2.3s ease forwards infinite;
+    animation: draw 1.5s ease forwards;
   }")
 }
 
@@ -230,11 +230,8 @@ pub fn render_text_file_to_svg(file: &PathBuf, font_config: &mut FontConfig, ren
     let mut doc = Document::new();
     let mut glyph_cache: GlyphCache = HashMap::new();
     let mut glyph_defs: GlyphDefs = HashMap::new(); // Uses Box<dyn Node>
-    // Group for all text content, potentially animated
+    // Group for all text content
     let mut main_group = Group::new();
-    if render_config.get_animate() {
-        main_group = main_group.set("class", "text");
-    }
     // Apply global fill/stroke to the main group
     main_group = main_group
         .set("fill", font_config.get_fill_color().as_str())
@@ -255,7 +252,7 @@ pub fn render_text_file_to_svg(file: &PathBuf, font_config: &mut FontConfig, ren
     }
 
     if let Ok(lines) = file_lines {
-        for line in lines.iter() {
+        for (line_index, line) in lines.iter().enumerate() {
             let line_group_transform = format!("translate(0, {})", current_height);
             if line.is_empty() {
                 // Still advance height for empty lines
@@ -263,10 +260,19 @@ pub fn render_text_file_to_svg(file: &PathBuf, font_config: &mut FontConfig, ren
                 // Pass glyph_defs as mutable reference
                 render_text_line(0.0, 0.0, line, font_config, render_config, &mut glyph_cache, &mut glyph_defs)
             {
-                // Wrap line content in a group for positioning
-                let positioned_line_group = Group::new()
+                // Wrap line content in a group for positioning and animation
+                let mut positioned_line_group = Group::new()
                     .set("transform", line_group_transform)
                     .add(line_content_group);
+                
+                // Add animation class and delay for each line
+                if render_config.get_animate() {
+                    let animation_delay = line_index as f32 * 0.8; // 0.8s delay between lines
+                    positioned_line_group = positioned_line_group
+                        .set("class", "text-line")
+                        .set("style", format!("animation-delay: {}s", animation_delay));
+                }
+                
                 main_group = main_group.add(positioned_line_group);
                 // Cast i16 width to u32 for max comparison
                 max_width = max_width.max(line_bbox.width() as u32);
@@ -305,17 +311,14 @@ fn render_text_lines_to_svg(lines: Vec<String>, font_config: &mut FontConfig, re
     let mut doc = Document::new();
     let mut glyph_cache: GlyphCache = HashMap::new();
     let mut glyph_defs: GlyphDefs = HashMap::new(); // Uses Box<dyn Node>
-    // Group for all text content, potentially animated
+    // Group for all text content
     let mut main_group = Group::new();
-    if render_config.get_animate() {
-        main_group = main_group.set("class", "text");
-    }
     // Apply global fill/stroke to the main group
     main_group = main_group
         .set("fill", font_config.get_fill_color().as_str())
         .set("stroke", font_config.get_color().as_str());
 
-    for line in lines.iter() {
+    for (line_index, line) in lines.iter().enumerate() {
         let line_group_transform = format!("translate(0, {})", current_height);
         if line.is_empty() {
             // Still advance height for empty lines
@@ -323,10 +326,19 @@ fn render_text_lines_to_svg(lines: Vec<String>, font_config: &mut FontConfig, re
             // Pass glyph_defs as mutable reference
             render_text_line(0.0, 0.0, line, font_config, render_config, &mut glyph_cache, &mut glyph_defs)
         {
-            // Wrap line content in a group for positioning
-            let positioned_line_group = Group::new()
+            // Wrap line content in a group for positioning and animation
+            let mut positioned_line_group = Group::new()
                 .set("transform", line_group_transform)
                 .add(line_content_group);
+            
+            // Add animation class and delay for each line
+            if render_config.get_animate() {
+                let animation_delay = line_index as f32 * 0.8; // 0.8s delay between lines
+                positioned_line_group = positioned_line_group
+                    .set("class", "text-line")
+                    .set("style", format!("animation-delay: {}s", animation_delay));
+            }
+            
             main_group = main_group.add(positioned_line_group);
             // Cast i16 width to u32 for max comparison
             max_width = max_width.max(line_bbox.width() as u32);
@@ -392,7 +404,7 @@ pub fn render_text_to_svg_file(text: &str, font_config: &mut FontConfig,render_c
             .set("fill", font_config.get_fill_color().as_str())
             .set("stroke", font_config.get_color().as_str());
         if render_config.get_animate() {
-            styled_group = styled_group.set("class", "text");
+            styled_group = styled_group.set("class", "text-line");
         }
 
         // Add definitions
