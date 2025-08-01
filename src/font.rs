@@ -4,6 +4,7 @@ use std::str::FromStr;
 use clap::ValueEnum;
 use font_kit::error::{FontLoadingError, SelectionError};
 use font_kit::font::Font;
+use font_kit::handle::Handle;
 use font_kit::properties::{Style, Weight};
 use font_kit::source::SystemSource;
 use rustybuzz::{Feature, ttf_parser::Tag};
@@ -163,6 +164,46 @@ fn approximate_font_weight(weight: Weight) -> FontStyle {
 }
 
 impl FontConfig {
+    pub fn from_file(
+        font_path: &str,
+        size: u32,
+        fill_color: String,
+        color: String,
+        debug: bool,
+    ) -> Result<Self, FontError> {
+        use std::collections::HashMap;
+        use font_kit::font::Font;
+        use std::fs;
+
+        let mut faces = HashMap::new();
+
+        // Load the font from the file
+        let data = fs::read(font_path).map_err(|_| FontError::FontLoadingError(font_kit::error::FontLoadingError::NoData))?;
+        let font = Font::from_bytes(data.into(), 0).map_err(FontError::FontLoadingError)?;
+
+        // You may want to allow specifying style, but for now just Regular
+        faces.insert(FontStyle::Regular, font);
+
+        let mut feature_map = HashMap::new();
+        feature_map.insert("kern".to_owned(), Feature::from_str("kern").unwrap());
+        feature_map.insert("liga".to_owned(), Feature::from_str("liga").unwrap());
+        feature_map.insert("calt".to_owned(), Feature::from_str("calt").unwrap());
+        feature_map.insert("clig".to_owned(), Feature::from_str("clig").unwrap());
+        let features = feature_map.values().cloned().collect();
+
+        Ok(Self {
+            font_name: font_path.to_string(),
+            size,
+            feature_map,
+            features,
+            fill_color,
+            color,
+            faces,
+            letter_space: 0.0,
+            debug,
+        })
+    }
+
     pub fn new(
         font_name: String,
         size: u32,
