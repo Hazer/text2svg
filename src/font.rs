@@ -8,6 +8,8 @@ use font_kit::handle::Handle;
 use font_kit::properties::{Style, Weight};
 use font_kit::source::SystemSource;
 use rustybuzz::{Feature, ttf_parser::Tag};
+use std::error::Error;
+use std::fmt::Display;
 
 /// names of installed fonts
 pub fn fonts() -> Vec<String> {
@@ -61,10 +63,8 @@ impl Display for FontStyle {
 pub enum FontError {
     SelectionError(SelectionError),
     FontLoadingError(FontLoadingError),
+    IoError(std::io::Error),
 }
-
-use std::error::Error;
-use std::fmt::Display;
 
 impl Error for FontError {}
 
@@ -76,6 +76,9 @@ impl Display for FontError {
             }
             FontError::FontLoadingError(e) => {
                 write!(f, "Font Error: {}", e)
+            }
+            FontError::IoError(e) => {
+                write!(f, "IO Error: {}", e)
             }
         }
     }
@@ -90,6 +93,12 @@ impl From<SelectionError> for FontError {
 impl From<FontLoadingError> for FontError {
     fn from(value: FontLoadingError) -> Self {
         Self::FontLoadingError(value)
+    }
+}
+
+impl From<std::io::Error> for FontError {
+    fn from(e: std::io::Error) -> Self {
+        FontError::IoError(e)
     }
 }
 
@@ -173,15 +182,14 @@ impl FontConfig {
     ) -> Result<Self, FontError> {
         use std::collections::HashMap;
         use font_kit::font::Font;
-        use std::fs;
+        use rustybuzz::Feature;
+        use std::str::FromStr;
 
-        let mut faces = HashMap::new();
-
-        // Load the font from the file
-        let data = fs::read(font_path).map_err(|_| FontError::FontLoadingError(font_kit::error::FontLoadingError::NoData))?;
+        // Read font data from file
+        let data = std::fs::read(font_path)?; // Will return FontError::IoError on failure
         let font = Font::from_bytes(data.into(), 0).map_err(FontError::FontLoadingError)?;
 
-        // You may want to allow specifying style, but for now just Regular
+        let mut faces = HashMap::new();
         faces.insert(FontStyle::Regular, font);
 
         let mut feature_map = HashMap::new();
@@ -267,7 +275,6 @@ impl FontConfig {
         })
     }
 
-
     /// Parse and set font features from a string like "cv01=1,calt=0,liga=1"
     /// This will override existing features for the same tags, but keeps defaults for unspecified features
     pub fn set_features_from_string(&mut self, features_str: &str) -> Result<(), String> {
@@ -350,7 +357,6 @@ impl FontConfig {
     pub fn get_features(&self) -> &Vec<Feature> {
         &self.features
     }
-
 
     pub fn get_font_by_style(&self, style: &FontStyle) -> Option<&Font> {
         self.faces.get(style)
